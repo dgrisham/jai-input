@@ -17,6 +17,26 @@ get_key_code :: (key: KeySym) -> Key_Code {
         return DASH;
     if key == 46
         return RIGHT_ANGLE_BRACKET;
+    if key == 48
+        return NUMBER_0;
+    if key == 49
+        return NUMBER_1;
+    if key == 50
+        return NUMBER_2;
+    if key == 51
+        return NUMBER_3;
+    if key == 52
+        return NUMBER_4;
+    if key == 53
+        return NUMBER_5;
+    if key == 54
+        return NUMBER_6;
+    if key == 55
+        return NUMBER_7;
+    if key == 56
+        return NUMBER_8;
+    if key == 57
+        return NUMBER_9;
     if key == 61
         return EQUALS_SIGN;
     if key == XK_Left
@@ -33,7 +53,7 @@ get_key_code :: (key: KeySym) -> Key_Code {
         return ESCAPE;
     if key == XK_Return
         return ENTER;
-    if (key == XK_Control_L) || (key == XK_Control_R)
+    if (key == XK_Control_L) || (key == XK_Control_R) || (key == XK_Caps_Lock) // @dgrisham: manually remap caps lock
         return CTRL;
     if key == XK_BackSpace
         return BACKSPACE;
