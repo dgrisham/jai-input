@@ -47,18 +47,19 @@ Key_Code :: enum u32 {
     SPACEBAR    :: 32;
 
 
-    DASH                :: 45;
+    DASH          :: 45;
+    FORWARD_SLASH :: 47;
 
-    NUMBER_0 ::48;
-    NUMBER_1 ::49;
-    NUMBER_2 ::50;
-    NUMBER_3 ::51;
-    NUMBER_4 ::52;
-    NUMBER_5 ::53;
-    NUMBER_6 ::54;
-    NUMBER_7 ::55;
-    NUMBER_8 ::56;
-    NUMBER_9 ::57;
+    NUMBER_0 :: 48;
+    NUMBER_1 :: 49;
+    NUMBER_2 :: 50;
+    NUMBER_3 :: 51;
+    NUMBER_4 :: 52;
+    NUMBER_5 :: 53;
+    NUMBER_6 :: 54;
+    NUMBER_7 :: 55;
+    NUMBER_8 :: 56;
+    NUMBER_9 :: 57;
 
     LEFT_ANGLE_BRACKET  :: 60;
     EQUALS_SIGN         :: 61;

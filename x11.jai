@@ -17,6 +17,8 @@ get_key_code :: (key: KeySym) -> Key_Code {
         return DASH;
     if key == 46
         return RIGHT_ANGLE_BRACKET;
+    if key == 47
+        return FORWARD_SLASH;
     if key == 48
         return NUMBER_0;
     if key == 49
