@@ -1,7 +1,7 @@
 #import "X11";
 #import "String";  // @Cleanup: Remove this dependency on String?
 
-set_imgui_mode :: (imgui_mode := true) {
+set_custom_cursor_handling :: (is_custom: bool) {
     // @Incomplete: Implement this.
     // Use this if you are doing immediate-mode API stuff that sets cursors and want to prevent cursors from flickering. Windows is annoying to interface with.
 }
@@ -475,7 +475,7 @@ maybe_handle_xdnd_drop_events :: (display: *Display, xevent: *XEvent, drop_info:
 
 
         event: Event;
-        event.type = Event_Type.DRAG_AND_DROP_FILES;
+        event.type = .DRAG_AND_DROP_FILES;
         event.files = files;
         array_add(*events_this_frame, event);
 
@@ -533,7 +533,7 @@ update_x11_window_events :: () {
                 event.alt_pressed = true;
 
             keysym := XkbKeycodeToKeysym(display, xx xev.xkey.keycode, 0, 0 /* English lowercase group*/);
-            event.type = Event_Type.KEYBOARD;
+            event.type = .KEYBOARD;
             event.key_pressed = 1;
             event.key_code = get_key_code(keysym);
             event.shift_pressed = cast(bool) shift;
@@ -546,7 +546,7 @@ update_x11_window_events :: () {
             if (keysym < XK_BackSpace || keysym > XK_Hyper_R) && !event.ctrl_pressed {
                 //WM_CHAR equivalent
                 char_event: Event;
-                char_event.type = Event_Type.TEXT_INPUT;
+                char_event.type = .TEXT_INPUT;
                 char_event.utf32 = xx keysym; // luckily most Xkb keys are directly mapped to Unicode characters @FixME which keys dont map to utf32 ??
 
                 array_add(*events_this_frame, char_event);
@@ -578,7 +578,7 @@ update_x11_window_events :: () {
                 event.alt_pressed = true;
 
             keysym := XkbKeycodeToKeysym(display, xx xev.xkey.keycode, 0, 0 /* English lowercase group*/);
-            event.type = Event_Type.KEYBOARD;
+            event.type = .KEYBOARD;
             event.key_pressed = 0;
             event.shift_pressed = cast(bool) shift;
             event.key_code = get_key_code(keysym);
@@ -588,7 +588,7 @@ update_x11_window_events :: () {
             array_add(*events_this_frame, event);
         case ButtonPress;
             event: Event;
-            event.type = Event_Type.KEYBOARD;
+            event.type = .KEYBOARD;
 
             event.key_pressed = 1;
             button := xev.xbutton.button;
@@ -606,7 +606,7 @@ update_x11_window_events :: () {
         case ButtonRelease;
             // it seems that mouse input doesnt generate repeat events so we dont have to peek the queue
             event: Event;
-            event.type = Event_Type.KEYBOARD;
+            event.type = .KEYBOARD;
 
             event.key_pressed = 0;
             button := xev.xbutton.button;
@@ -706,13 +706,7 @@ update_x11_window_events :: () {
 #scope_export
 
 update_window_events :: () {
-    new_context: Context;
-    new_context.allocator = Context.default_allocator;
-    new_context.logger    = Context.default_logger;
-
-    push_context new_context {
-        update_x11_window_events();
-    }
+    update_x11_window_events();
 }
 
 // @Cutnpaste from Input/windows.jai

@@ -7,9 +7,9 @@ window_minimized := false; // @@ Hack.
 // update_window_events outside the main thread or send events to Cocoa objects outside the main thread.
 osx_externally_generated_events: [..] Event;
 
-set_imgui_mode :: (imgui_mode := true) {
-    // @Incomplete: Implement this.
-    // Use this if you are doing immediate-mode API stuff that sets cursors and want to prevent cursors from flickering. Windows is annoying to interface with.
+set_custom_cursor_handling :: (is_custom: bool) {
+     // @Incomplete: Implement this.
+     // Use this if you are doing immediate-mode API stuff that sets cursors and want to prevent cursors from flickering. Windows is annoying to interface with.
 }
 
 #scope_file
@@ -452,13 +452,7 @@ update_window_events :: () {
         input_vk_table_initialized = true;
     }
     
-    new_context: Context;
-    new_context.allocator = Context.default_allocator;
-    new_context.logger    = Context.default_logger;
-
-    push_context new_context {
-        update_cocoa_window_events();
-    }
+    update_cocoa_window_events();
 }
 
 // @Cutnpaste from Input/windows.jai

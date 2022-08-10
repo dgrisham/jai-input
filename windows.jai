@@ -11,9 +11,9 @@
 
 window_minimized := false; // @@ Hack.
 
-set_imgui_mode :: (imgui_mode := true) {
+set_custom_cursor_handling :: (is_custom: bool) {
     // Use this if you are doing immediate-mode API stuff that sets cursors and want to prevent cursors from flickering. Windows is annoying to interface with.
-    windows_ignore_setcursor_messages = imgui_mode;
+    windows_ignore_setcursor_messages = is_custom;
 }
 
 //#scope_export

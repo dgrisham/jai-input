@@ -46,7 +46,6 @@ Key_Code :: enum u32 {
     ESCAPE      :: 27;
     SPACEBAR    :: 32;
 
-
     DASH          :: 45;
     FORWARD_SLASH :: 47;
 
@@ -217,6 +216,8 @@ get_window_resizes :: () -> [] Window_Resize_Record {
     if !pending_resizes return .[];
 
     array_copy(*resizes_to_free, pending_resizes);
+    this_allocation_is_not_a_leak(resizes_to_free.data);
+    
     pending_resizes.count = 0;
     return resizes_to_free;
 }
@@ -230,27 +231,6 @@ get_window_moves :: () -> [] Window_Move_Record {
     array_copy(*moves_to_free, pending_moves);
     pending_moves.count = 0;
     return moves_to_free;
-}
-
-is_a_window_resized :: () -> bool, Window_Resize_Record #deprecated "Use get_window_resizes instead." {
-    // Note: If the user never calls this routine, pending_resizes may grow without bound!
-    // Maybe we should clean this up so that it only stores one record per window, max.
-    
-    // @Robustness: Do we want to make it easier for the application by consolidating
-    // multiple resizes of the same window, so there's only one?
-    dummy: Window_Resize_Record = ---;
-    if !pending_resizes.count return false, dummy;
-    return true, pop(*pending_resizes);
-}
-
-has_a_window_moved :: () -> bool, Window_Move_Record #deprecated "Use get_window_moves instead." {
-    // Note: If the user never calls this routine, pending_moves may grow without bound!
-
-    // @Robustness: Do we want to make it easier for the application by consolidating
-    // multiple resizes of the same window, so there's only one?
-    dummy: Window_Move_Record = ---;
-    if !pending_moves.count return false, dummy;
-    return true, pop(*pending_moves);
 }
 
 input_per_frame_event_and_flag_update :: () {
