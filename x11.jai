@@ -7,101 +7,97 @@ set_custom_cursor_handling :: (is_custom: bool) {
 }
 
 get_key_code :: (key: KeySym) -> Key_Code {
-    using Key_Code;
+    // Modified get_key_code() by Vladislav Morozov,
+    // subject to CC0 1.0 Universal.
 
-    if key == 32
-        return SPACEBAR;
-    if key == 44
-        return LEFT_ANGLE_BRACKET;
-    if key == 45
-        return DASH;
-    if key == 46
-        return RIGHT_ANGLE_BRACKET;
-    if key == 47
-        return FORWARD_SLASH;
-    if key == 48
-        return NUMBER_0;
-    if key == 49
-        return NUMBER_1;
-    if key == 50
-        return NUMBER_2;
-    if key == 51
-        return NUMBER_3;
-    if key == 52
-        return NUMBER_4;
-    if key == 53
-        return NUMBER_5;
-    if key == 54
-        return NUMBER_6;
-    if key == 55
-        return NUMBER_7;
-    if key == 56
-        return NUMBER_8;
-    if key == 57
-        return NUMBER_9;
-    if key == 61
-        return EQUALS_SIGN;
-    if key == XK_Left
-        return ARROW_LEFT;
-    if key == XK_Right
-        return ARROW_RIGHT;
-    if key == XK_Up
-        return ARROW_UP;
-    if key == XK_Down
-        return ARROW_DOWN;
-    if (key == XK_Shift_L) || (key == XK_Shift_R)
-        return SHIFT;
-    if key == XK_Escape
-        return ESCAPE;
-    if key == XK_Return
-        return ENTER;
-    if (key == XK_Control_L) || (key == XK_Control_R) || (key == XK_Caps_Lock) // @dgrisham: manually remap caps lock
-        return CTRL;
-    if key == XK_BackSpace
-        return BACKSPACE;
-    if key == XK_Delete
-        return DELETE;
-    if key == XK_Tab
-        return TAB;
-    if key == XK_F1
-        return F1;
-    if key == XK_F2
-        return F2;
-    if key == XK_F3
-        return F3;
-    if key == XK_F4
-        return F4;
-    if key == XK_F5
-        return F5;
-    if key == XK_F6
-        return F6;
-    if key == XK_F7
-        return F7;
-    if key == XK_F8
-        return F8;
-    if key == XK_F9
-        return F9;
-    if key == XK_F10
-        return F10;
-    if key == XK_F11
-        return F11;
-    if key == XK_F12
-        return F12;
-    if key == XK_F13
-        return F13;
-    if key == XK_F14
-        return F14;
-    if key == XK_F15
-        return F15;
-    if key == XK_F16
-        return F16;
+     using Key_Code;
+     // non-ascii ordered as in ./module.jai/Key_Code
+     if key == XK_BackSpace
+         return BACKSPACE;
+     if key == XK_Tab
+         return TAB;
+     if key == XK_Return
+         return ENTER;
+     if key == XK_Escape
+         return ESCAPE;
 
-    key = key & 0xFF;
-    if (key >= #char "a") && (key <= #char "z") return cast(Key_Code) (key - 0x20);
 
-    return UNKNOWN;
+     if key == XK_Delete
+         return DELETE;
+
+
+     if key == XK_Up
+         return ARROW_UP;
+     if key == XK_Down
+         return ARROW_DOWN;
+     if key == XK_Left
+         return ARROW_LEFT;
+     if key == XK_Right
+         return ARROW_RIGHT;
+
+
+     if key == XK_Page_Up
+         return PAGE_UP;
+     if key == XK_Page_Down
+         return PAGE_DOWN;
+
+
+     if key == XK_Home
+         return HOME;
+     if key == XK_End
+         return END;
+
+
+     if key == 0xff63 // XK_Insert @Cleanup add to modules/X11/module.jai
+         return INSERT;
+
+
+     if key == XK_Pause
+         return PAUSE;
+     if key == XK_Scroll_Lock
+         return SCROLL_LOCK;
+
+
+     if (key == XK_Alt_L) || (key == XK_Alt_R)
+     || (key == 0xfe03) // AltGr #on_my_machine @Cleanup
+         return ALT;
+     if (key == XK_Control_L) || (key == XK_Control_R)
+         return CTRL;
+     if (key == XK_Shift_L) || (key == XK_Shift_R)
+         return SHIFT;
+     if (key == XK_Meta_L) || (key == XK_Meta_R)
+     || (key == XK_Super_L) || (key == XK_Super_R)
+     || (key == XK_Hyper_L) || (key == XK_Hyper_R)
+         return META;
+
+
+     if key >= XK_F1 && key <= XK_F24
+         return (cast(Key_Code) (key - XK_F1))+F1;
+
+
+     if key == 0xff61 // XK_Print_Screen @Cleanup add to modules/X11/module.jai
+         return PRINT_SCREEN;
+
+
+     if key == 0xff67 // XK_Menu @Cleanup add to modules/X11/module.jai
+         return UNKNOWN;
+
+     key = key & 0xFF; // @Cleanup Why is this here? (It mapped Menu to "G". What else?)
+
+     gen_ascii_LUT :: () -> [0xFF] Key_Code {
+         lut : [0xFF] Key_Code; // Filled with UNKNOWN (=0)
+         for (#char "a")..(#char "z") lut[it] = cast(Key_Code) (it - 0x20);
+         for (#char "0")..(#char "9") lut[it] = cast(Key_Code) it;
+         for cast([]u8)"`;'\\[]-=.,/+ \n" lut[it] = cast(Key_Code) it;
+         //print("\n\n%\n\n", FormatArray.{value=cast([]u32)lut,stop_printing_after_this_many_elements=-1}); @Cleanup do this once it's fixed
+         //assert(false, "Copypaste the LUT into this file and comment out this #run");
+         return lut;
+     }
+
+     LUT : [0xFF] Key_Code : #run gen_ascii_LUT();
+
+     return LUT[key];
 }
-
 
 #scope_file
 
@@ -454,25 +450,31 @@ maybe_handle_xdnd_drop_events :: (display: *Display, xevent: *XEvent, drop_info:
     if drop_info.data.count > 0 {
         files: [..] string;
 
-        p := "";
+        p: string = ---;
         p.data = drop_info.data.data;
         p.count = drop_info.data.count;
         while true {
-            i := find_index_from_left(p, "\r\n");
-            if i == -1  break;
+            uri_length := find_index_from_left(p, "\r\n");
+            if uri_length == -1  break;
 
-            file_name := "";
+            // X gives URI like "file://[host]/path/to/file" instead of just path
+            URI_PREFIX :: "file://";
+            assert(begins_with(p, URI_PREFIX));
+            // let's ignore this "file://" prefix
+            file_name := slice(p, URI_PREFIX.count, uri_length - URI_PREFIX.count);
+            assert(file_name.count > 0);
+
+            advance(*p, uri_length + 2);
+
+            if (file_name[0] != #char "/") {
+                // URI seems to start with a hostname.
+                log_error("Drag & drop for file URIs with hostnames is not yet supported. Ignoring \"%\".", slice(p, 0, uri_length));
+                continue;
+            }
+
             // Heap allocated like on Windows.
-            file_name_bytes := cast(*u8) alloc(i, __temporary_allocator);
-            memcpy(file_name_bytes, p.data, i);
-            p.data = p.data + i + 2;
-            p.count = p.count - i - 2;
-
-            file_name.data = file_name_bytes;
-            file_name.count = i;
-            array_add(*files, file_name);
+            array_add(*files, copy_string(file_name));
         }
-
 
         event: Event;
         event.type = .DRAG_AND_DROP_FILES;
@@ -494,7 +496,7 @@ update_x11_window_events :: () {
 
     display := x_global_display;
     XLockDisplay(display);
-    
+
     while XPending(display) {
         xev: XEvent;
         XNextEvent(display, *xev);
@@ -539,7 +541,7 @@ update_x11_window_events :: () {
             event.shift_pressed = cast(bool) shift;
 
             input_button_states[event.key_code] = (Key_Current_State.START | Key_Current_State.DOWN);
-            
+
             array_add(*events_this_frame, event);
 
             keysym = XkbKeycodeToKeysym(display, xx xev.xkey.keycode, 0, shift);
@@ -561,8 +563,7 @@ update_x11_window_events :: () {
                     && nev.xkey.time == xev.xkey.time
                     && nev.xkey.keycode == xev.xkey.keycode {
 
-                    // this is a repeat so we pull it out of the queue and ignore the KeyRelease
-                    XNextEvent(display, *nev);
+                    // This is a repeat, so we ignore the KeyRelease.
                     continue;
                 }
             }
@@ -584,7 +585,7 @@ update_x11_window_events :: () {
             event.key_code = get_key_code(keysym);
 
             input_button_states[event.key_code] = Key_Current_State.END;
-            
+
             array_add(*events_this_frame, event);
         case ButtonPress;
             event: Event;
@@ -741,4 +742,4 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
-*/    
+*/
