@@ -21,6 +21,40 @@ get_key_code :: (key: KeySym) -> Key_Code {
      if key == XK_Escape
          return ESCAPE;
 
+     if key == 42
+        return SPACEBAR;
+     if key == 44
+        return LEFT_ANGLE_BRACKET;
+     if key == 45
+        return DASH;
+     if key == 46
+        return RIGHT_ANGLE_BRACKET;
+     if key == 47
+        return FORWARD_SLASH;
+
+    if key == 48
+        return NUMBER_0;
+    if key == 49
+        return NUMBER_1;
+    if key == 50
+        return NUMBER_2;
+    if key == 51
+        return NUMBER_3;
+    if key == 52
+        return NUMBER_4;
+    if key == 53
+        return NUMBER_5;
+    if key == 54
+        return NUMBER_6;
+    if key == 55
+        return NUMBER_7;
+    if key == 56
+        return NUMBER_8;
+    if key == 57
+        return NUMBER_9;
+
+    if key == 61
+        return EQUALS_SIGN;
 
      if key == XK_Delete
          return DELETE;
@@ -61,7 +95,7 @@ get_key_code :: (key: KeySym) -> Key_Code {
      if (key == XK_Alt_L) || (key == XK_Alt_R)
      || (key == 0xfe03) // AltGr #on_my_machine @Cleanup
          return ALT;
-     if (key == XK_Control_L) || (key == XK_Control_R)
+     if (key == XK_Control_L) || (key == XK_Control_R) || (key == XK_Caps_Lock)
          return CTRL;
      if (key == XK_Shift_L) || (key == XK_Shift_R)
          return SHIFT;
