@@ -1,5 +1,6 @@
 #import "Windows";
 #import "Windows_Utf8";
+#import "Hash_Table";
 
 
 //
@@ -20,8 +21,15 @@ set_custom_cursor_handling :: (is_custom: bool) {
 
 get_key_code :: (wParam: WPARAM) -> Key_Code {
     if (wParam >= 48) && (wParam <= 90) return cast(Key_Code) wParam;
-    
+
     using Key_Code;
+
+    if wParam == VK_LBUTTON
+        return MOUSE_BUTTON_LEFT;
+    if wParam == VK_MBUTTON
+        return MOUSE_BUTTON_MIDDLE;
+    if wParam == VK_RBUTTON
+        return MOUSE_BUTTON_RIGHT;
 
     if wParam == VK_SPACE   return xx 32;
 
@@ -31,7 +39,7 @@ get_key_code :: (wParam: WPARAM) -> Key_Code {
 
     if wParam == VK_PAUSE        return PAUSE;
     if wParam == VK_SCROLL       return SCROLL_LOCK;
-    
+
     if wParam == VK_PRIOR
         return PAGE_UP;
     if wParam == VK_NEXT
@@ -82,7 +90,7 @@ get_key_code :: (wParam: WPARAM) -> Key_Code {
     if wParam == VK_OEM_MINUS   return xx #char "-";
     if wParam == VK_OEM_PERIOD  return xx #char ".";
     if wParam == VK_OEM_COMMA   return xx #char ",";
-    
+
     if (wParam >= VK_F1) && (wParam <= VK_F16) {
         delta := wParam - VK_F1;
         return xx(F1 + xx delta);
@@ -97,34 +105,34 @@ get_vk :: (key: Key_Code) -> VK: u64 {
     using Key_Code;
 
     if (key >= xx 48) && (key <= xx 90) return cast(u64) key;
-    
+
     if key == xx 32            return  VK_SPACE;
 
     if key == PAGE_UP          return VK_PRIOR;
     if key == PAGE_DOWN        return VK_NEXT;
 
     if key == ARROW_LEFT       return VK_LEFT;
-    
-    if key == ARROW_RIGHT      return VK_RIGHT; 
-    
+
+    if key == ARROW_RIGHT      return VK_RIGHT;
+
     if key == ARROW_UP         return VK_UP;
-    
+
     if key == ARROW_DOWN       return VK_DOWN;
-    
+
     if key == ALT              return VK_MENU;
     if key == SHIFT            return VK_SHIFT;
-    
+
     if key == CTRL             return VK_CONTROL;
-    
+
     if key == BACKSPACE        return VK_BACK;
-    
+
     if key == DELETE           return VK_DELETE;
     if key == INSERT           return VK_INSERT;
-    
+
     if key == ESCAPE           return VK_ESCAPE;
-    
+
     if key == ENTER            return VK_RETURN;
-    
+
     if key == TAB              return VK_TAB;
 
     if key == xx #char ";"     return VK_OEM_1;
@@ -134,7 +142,7 @@ get_vk :: (key: Key_Code) -> VK: u64 {
     if key == xx #char "\\"    return VK_OEM_5;
     if key == xx #char "]"     return VK_OEM_6;
     if key == xx #char "'"     return VK_OEM_7;
-    
+
     if key == xx #char "+"     return VK_OEM_PLUS;
     if key == xx #char "-"     return VK_OEM_MINUS;
     if key == xx #char "."     return VK_OEM_PERIOD;
@@ -156,8 +164,6 @@ get_vk :: (key: Key_Code) -> VK: u64 {
 MyWindowProc :: (hwnd: HWND, message: u32,
                  wParam: WPARAM, lParam: LPARAM) -> s64 #c_call {
     new_context: Context;
-    new_context.allocator = Context.default_allocator;
-    new_context.logger    = Context.default_logger;
 
     push_context new_context {
         using Key_Code;
@@ -173,101 +179,48 @@ MyWindowProc :: (hwnd: HWND, message: u32,
                 // or do we also get a KEYDOWN for F10?
                 return 0;
             }
-*/                
+*/
 	        return DefWindowProcW(hwnd, message, wParam, lParam);
-            
+
           case WM_ACTIVATEAPP;
             if wParam {  // We are being activated.
-/*
-                // Scan all our keys; if any are pressed, detect whether they are really down.
-                // @Incomplete? Notice whether keys are down when we get ACTIVATEAPP?
-                for input_button_states {
-                    if !(it & DOWN) continue;
 
-                    vk := get_vk(xx it_index);
-                    if !vk continue;
-
-                    state := GetKeyState(xx vk);
-                    
+                // We do our best to provide the application with reliable key states without brute force sampling every key.
+                // The intended rules are that a key down event will be sent when a key is depressed and will be followed
+                // by zero or more key down events with the repeat flag set as long as the key remains down.  A key up event
+                // will be sent when the key is released.
+                // In practice:
+                // 1. An application will always be notified when it has or gains focus if a key is up.
+                // 2. An application will always be notified when it has focus if a key is down.
+                // 3. An application will *usually* be notified when it gains focus if a key is down.
+                // So the one thing you can't rely on is being notified if a key is pressed while the application is out of
+                // focus and then the application gains focus.  In the rare cases where that doesn't happen, the key will
+                // have to be released and re-pressed for the application to get a key down event.
+                for key_down, vkey: key_down_table {
+                    state := GetAsyncKeyState(cast,trunc(s32) vkey);
                     if !(state & 0x8000) {
-                        event: Event;
-                        event.type = .KEYBOARD;
-                        event.key_pressed = 0;
-                        event.key_code = xx it_index;
-                        event.packed = 0;  // @Temporary: Unions not currently initialized.
-                        event.shift_pressed = shift_state;
-                        event.ctrl_pressed = ctrl_state;
-                        event.alt_pressed = alt_state;
-                        array_add(*events_this_frame, event);
-                        
-                        input_button_states[it_index] = .END;  // Because we shadowed that by Key_Code.END.
-                        // @Redundant: It would probably be cleaner
-                        // if we just set shift/ctrl/alt state
-                        // on each Event based on the state of
-                        // these keys in input_button_states[].
-                        //          -jblow, 6 May 2017.
-                        if vk == VK_SHIFT    shift_state = false;
-                        if vk == VK_CONTROL  ctrl_state  = false;
-                        if vk == VK_MENU     alt_state   = false;
+                        send_key_event(get_key_code(vkey), false);
+                        remove;
                     }
                 }
-*/
             }
 	        return DefWindowProcW(hwnd, message, wParam, lParam);
 
           case WM_SYSKEYDOWN; #through;
           case WM_KEYDOWN;
-            // @Refactor: Keydown and Keyup were written to use an array, as
-            // below, but later on the buffered system was created for WM_CHAR
-            // so maybe these can be rewritten to use that (and we can ditch
-            // the arrays)?  It all depends on what functionality we settle
-            // on wanting from the arrays...
-            
-            repeat := ((cast (s32) lParam) & 0x40000000);
 
-            //alt_down := (message == WM_SYSKEYDOWN) && (lParam & (1 << 29)) != 0;
-
-            event: Event;
-            event.type = .KEYBOARD;
-            event.key_pressed = 1;
-            event.key_code = get_key_code(wParam);
-            event.packed = 0;
-            event.shift_pressed = shift_state;
-            event.ctrl_pressed  = ctrl_state;
-            event.alt_pressed   = alt_state;
-            event.repeat = (repeat != 0);
-            
-            input_button_states[event.key_code] |= (DOWN | START);
-
-            array_add(*events_this_frame, event);
-            
-            if wParam == VK_MENU      alt_state   = true;
-            if wParam == VK_SHIFT     shift_state = true;
-            if wParam == VK_CONTROL   ctrl_state  = true;  // @Cleanup: Look at what I do in the Braid code because this is bananas.
+            repeat := ((cast (s32) lParam) & 0x40000000) != 0;
+            maybe_send_vkey_event(wParam, true, repeat);
 
           case WM_SYSKEYUP; #through;
           case WM_KEYUP;
-            event: Event;
-            event.type = .KEYBOARD;
-            event.key_pressed = 0;
-            event.key_code = get_key_code(wParam);
-            event.packed = 0;  // @Temporary: Unions not currently initialized.
-            event.shift_pressed = shift_state;
-            event.ctrl_pressed = ctrl_state;
-            event.alt_pressed   = alt_state;
 
-            input_button_states[event.key_code] |= .END;  // Because we shadowed that by Key_Code.END.
-            
-            array_add(*events_this_frame, event);
+            maybe_send_vkey_event(wParam, false);
 
-            if wParam == VK_MENU      alt_state   = false;
-            if wParam == VK_SHIFT     shift_state = false;
-            if wParam == VK_CONTROL   ctrl_state  = false;
-          
           case WM_SYSCHAR;
               // This is here to prevent beeps when a Alt key combo is pressed. If we don't return 0, windows helpfully emits a beep sound to
               // indicate the user that the key wasn't handled.
-              
+
           case WM_CHAR;
             keycode := wParam;
 
@@ -278,7 +231,7 @@ MyWindowProc :: (hwnd: HWND, message: u32,
                 event: Event;
                 event.type = .TEXT_INPUT;
                 event.utf32 = xx keycode;
-                
+
                 array_add(*events_this_frame, event);
             }
 
@@ -292,61 +245,19 @@ MyWindowProc :: (hwnd: HWND, message: u32,
 
           case WM_LBUTTONDOWN; #through;
           case WM_LBUTTONUP;
-            event: Event;
-            event.type     = .KEYBOARD;
-            event.key_code = MOUSE_BUTTON_LEFT;
-            
-            pressed := false;
-            if message == WM_LBUTTONDOWN  {
-                pressed = true;
-                input_button_states[event.key_code] |= (START | DOWN);
-            } else {
-                input_button_states[event.key_code] |= .END;  // Because we shadowed that by Key_Code.END.
-            }
-
-            event.key_pressed = xx pressed;
-
-            array_add(*events_this_frame, event);
+            maybe_send_vkey_event(VK_LBUTTON, message == WM_LBUTTONDOWN);
 
             if message == WM_LBUTTONDOWN SetCapture(hwnd);
             else ReleaseCapture();
 
           case WM_RBUTTONDOWN; #through;
           case WM_RBUTTONUP;
-            event: Event;
-            event.type = .KEYBOARD;
-            event.key_code = MOUSE_BUTTON_RIGHT;
-
-            pressed := false;
-            if message == WM_RBUTTONDOWN {
-                pressed = true;
-                input_button_states[event.key_code] |= (START | DOWN);
-            } else {
-                input_button_states[event.key_code] |= .END;  // Because we shadowed that by Key_Code.END.
-            }
-
-            event.key_pressed = xx pressed;
-
-            array_add(*events_this_frame, event);
+            maybe_send_vkey_event(VK_RBUTTON, message == WM_RBUTTONDOWN);
 
          case WM_MBUTTONDOWN; #through;
          case WM_MBUTTONUP;
-            event: Event;
-            event.type = .KEYBOARD;
-            event.key_code = MOUSE_BUTTON_MIDDLE;
+            maybe_send_vkey_event(VK_MBUTTON, message == WM_MBUTTONDOWN);
 
-            pressed := false;
-            if message == WM_MBUTTONDOWN {
-                pressed = true;
-                input_button_states[event.key_code] |= (START | DOWN);
-            } else {
-                input_button_states[event.key_code] |= .END;  // Because we shadowed that by Key_Code.END.
-            }
-
-            event.key_pressed = xx pressed;
-
-            array_add(*events_this_frame, event);
-            
           case WM_MOUSEMOVE;
             // We don't have mouse move events yet, but we'll record the delta.
 
@@ -369,7 +280,7 @@ MyWindowProc :: (hwnd: HWND, message: u32,
             array_add(*events_this_frame, event);
 
             mouse_delta_z += event.wheel_delta;
-            
+
           case WM_CLOSE; #through;
           case WM_QUIT;
             event: Event;
@@ -411,7 +322,7 @@ MyWindowProc :: (hwnd: HWND, message: u32,
           case WM_DPICHANGED;
             y_dpi := (wParam >> 16) & 0xFFFF;
             x_dpi := (wParam)       & 0xFFFF;
-            
+
             rect := cast(*RECT) lParam;
 
             w := rect.right - rect.left;
@@ -423,23 +334,26 @@ MyWindowProc :: (hwnd: HWND, message: u32,
  	  	    drop := cast(HDROP) wParam;
  	 	    // If "0xFFFFFFFF" as the second parameter: return the count of files dropped.
  	 	    file_paths_count := DragQueryFileW(drop, 0xFFFFFFFF, null, 0);
+            assert(file_paths_count > 0);
+
             files: [..] string;
-            
+            array_reserve(*files, file_paths_count);
+
  	 	    for i: 0..file_paths_count-1 {
- 	 	        // If nulll as the third parameter: return the length of the path, not counting the trailing '\0'.
+ 	 	        // If null as the third parameter: return the length of the path, not counting the trailing '\0'.
  	 	        file_name_wide_count := DragQueryFileW(drop, i, null, 0) + 2;
  	 	        assert(file_name_wide_count > 0);
- 	            
- 	  	        file_name_wide := cast(*u16) alloc(file_name_wide_count * size_of(u16), __temporary_allocator);
+
+ 	  	        file_name_wide := cast(*u16) alloc(file_name_wide_count * size_of(u16));
  	 	        ok := DragQueryFileW(drop, i, file_name_wide, file_name_wide_count);
  	 	        assert(ok > 0); // means success
- 	            
- 	  	        file_name := wide_to_utf8(file_name_wide);
+
+ 	  	        file_name := wide_to_utf8_new(file_name_wide,, temp);
  	 	        array_add(*files, file_name);
  	 	    }
-            
+
  	 	    DragFinish(drop);
- 	        
+
  	  	    event: Event;
  	 	    event.type  = .DRAG_AND_DROP_FILES;
             event.files = files;
@@ -449,7 +363,7 @@ MyWindowProc :: (hwnd: HWND, message: u32,
           case WM_SETCURSOR;
             if windows_ignore_setcursor_messages return 0;
 	        else return DefWindowProcW(hwnd, message, wParam, lParam);
-            
+
           case;
 	        return DefWindowProcW(hwnd, message, wParam, lParam);
 	    }
@@ -463,7 +377,7 @@ update_window_events :: () {
         init_input_system();
         initted = true;
     }
-    
+
     input_per_frame_event_and_flag_update();
 
     // @Robustness: Maybe do this for all keystrokes that are down? Sigh...
@@ -490,7 +404,7 @@ update_window_events :: () {
             input_button_states[Key_Code.SHIFT] |= .END;
         }
     }
-    
+
     while true {
         msg: MSG;
 
@@ -502,7 +416,7 @@ update_window_events :: () {
         /*if msg.message == WM_SYSKEYDOWN {
             if msg.wParam == VK_RETURN {
 
-                // Toggle full screen upon alt-enter 
+                // Toggle full screen upon alt-enter
                 dwMask :: (1 << 29);
                 if (msg.lParam & dwMask) != 0 { // Alt is down also
                     //display->toggle_fullscreen();
@@ -524,7 +438,7 @@ update_window_events :: () {
             }
         }*/
 
-        // Doing that was also useful to avoid the beeping sound when pressing Alt+key combinations. However, to avoid that 
+        // Doing that was also useful to avoid the beeping sound when pressing Alt+key combinations. However, to avoid that
         // we only need to avoid TranslateMessage. Turns out TranslateMessage enqueues a WM_SYSCHAR message which is the actual
         // culprit of the beeping sound. Handling WM_SYSCHAR in the message handler and returning 0 prevents the default handling
         // of the message and avoids the beep.
@@ -579,7 +493,7 @@ process_raw_input :: (handle: HRAWINPUT) {
     assert(written_bytes <= dwSize);        // note that GetRawInputData() is allowed to request a buffer size and then write less bytes than the size
 
     raw := cast(*RAWINPUT) raw_input_buffer.data;
-    
+
     handled := false;
     if raw.header.dwType == RIM_TYPEMOUSE {
         mouse := *raw.data.mouse;
@@ -600,7 +514,7 @@ process_raw_input :: (handle: HRAWINPUT) {
         is_left  := (raw.data.keyboard.Flags & RI_KEY_E0)    != 0;
         is_right := (raw.data.keyboard.Flags & RI_KEY_E1)    != 0;
         is_down  := (raw.data.keyboard.Flags & RI_KEY_BREAK) == 0;
-        
+
         vkey    := raw.data.keyboard.VKey;
         raw_key := raw.data.keyboard.MakeCode;
 
@@ -613,26 +527,8 @@ handle_keyboard_event :: (is_left: bool, is_right: bool, is_down: bool, vkey: u1
     if vkey != VK_SNAPSHOT return false;
 
     key_code := get_key_code(vkey);
-
     repeat := is_down && (input_button_states[key_code] & .DOWN) != 0;
-
-    if is_down {
-        input_button_states[key_code] |= (Key_Current_State.DOWN | .START);
-    } else {
-        input_button_states[key_code] |= .END;
-    }
-
-    event: Event;
-    event.type = .KEYBOARD;
-    event.key_pressed = xx is_down;
-    event.key_code = key_code;
-    event.packed = 0;
-    event.shift_pressed = shift_state;
-    event.ctrl_pressed  = ctrl_state;
-    event.alt_pressed   = alt_state;
-    event.repeat = repeat;
-    
-    array_add(*events_this_frame, event);
+    maybe_send_vkey_event(vkey, is_down, repeat);
 
     return true;
 }
@@ -646,7 +542,7 @@ init_input_system :: () {
     rid[0].dwFlags = 0;
     // rid[0].hwndTarget = null;
 
-    // IC: We are not using the RIDEV_NOHOTKEYS flag anymore, because it interferes with the Alt-Tab dialog. 
+    // IC: We are not using the RIDEV_NOHOTKEYS flag anymore, because it interferes with the Alt-Tab dialog.
     // This means that we are not blocking the windows logo key and that pressing it will cause the app to loose the focus.
     rid[1].usUsagePage = 0x01;
     rid[1].usUsage = 0x06;            // HID keyboard
@@ -659,10 +555,10 @@ init_input_system :: () {
     } else {
         log_error("Failed to initialize Raw Input.\n");
     }
-    
+
     // @@ Enable/Disable shortcut keys?
 
-    // Disable StickyKeys/etc shortcuts but if the accessibility feature is on, 
+    // Disable StickyKeys/etc shortcuts but if the accessibility feature is on,
     // then leave the settings alone as its probably being usefully used
 
     sk: STICKYKEYS;
@@ -767,3 +663,51 @@ add_move_record :: (hwnd: HWND) {
 
 #scope_file
 windows_ignore_setcursor_messages := false;
+
+key_down_table : Table(u32, bool);
+
+set_key_down_state :: (vkey : u32, is_down: bool) -> was_down:bool {
+    was_down := table_find_pointer(*key_down_table, vkey) != null;
+    if is_down && !was_down {
+        table_add(*key_down_table, vkey, true);
+    } else if was_down && !is_down {
+        table_remove(*key_down_table, vkey);
+    }
+
+    return was_down;
+}
+
+maybe_send_vkey_event :: (vkey: u64, key_down: bool, repeat := false) {
+    was_down := set_key_down_state(cast,trunc(u32) vkey, key_down);
+    if !key_down && !was_down {
+        // redundant key_up event
+        return;
+    }
+
+    if key_down && repeat && !was_down {
+        // key was pressed while we didn't have focus so the first
+        // event we see is incorrectly labeled as a repeat.
+        repeat = false;
+    }
+
+    send_key_event(get_key_code(vkey), key_down, repeat);
+}
+
+send_key_event :: (key_code: Key_Code, key_down: bool, repeat := false) {
+    if key_code == .ALT     alt_state   = key_down;
+    if key_code == .SHIFT   shift_state = key_down;
+    if key_code == .CTRL    ctrl_state  = key_down;  // @Cleanup: Look at what I do in the Braid code because this is bananas.
+
+    event: Event;
+    event.type = .KEYBOARD;
+    event.key_pressed = xx key_down;
+    event.key_code = key_code;
+    event.packed = 0;
+    event.shift_pressed = shift_state;
+    event.ctrl_pressed  = ctrl_state;
+    event.alt_pressed   = alt_state;
+    event.repeat = repeat;
+    array_add(*events_this_frame, event);
+
+    input_button_states[key_code] |= ifx key_down then (Key_Current_State.DOWN | .START) else .END;
+}

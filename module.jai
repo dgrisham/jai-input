@@ -11,6 +11,10 @@
     #load "x11.jai";
 } else #if OS == .MACOS {
     #load "macos.jai";
+} else #if OS == .PS5 {
+    #load "ps5.jai";
+} else #if OS == .ANDROID {
+    #load "android.jai";
 }
 
 Event_Type :: enum u32 {  // If we set this to u8, our packing will stop matching C's.
@@ -66,7 +70,7 @@ Key_Code :: enum u32 {
 
     // The letters A-Z live in here as well and may be returned
     // by keyboard events.
-    
+
     DELETE      :: 127;
 
     ARROW_UP    :: 128;
@@ -84,12 +88,14 @@ Key_Code :: enum u32 {
 
     PAUSE       :: 137;
     SCROLL_LOCK :: 138;
-    
+
     ALT;
     CTRL;
     SHIFT;
-    
-    F1;         
+    CMD;
+    META :: CMD;
+
+    F1;
     F2;
     F3;
     F4;
@@ -156,30 +162,30 @@ Event :: struct {
 
         struct {
             // @@ This is confusing. Below key_pressed means the key was just pressed, here _pressed means the key is held down.
-            shift_pressed := false;   // Only set for Event_Type.KEYBOARD.
-            ctrl_pressed  := false;   // Only set for Event_Type.KEYBOARD.
-            alt_pressed   := false;
-            dummy         := false;
+            shift_pressed    := false;
+            ctrl_pressed     := false;
+            alt_pressed      := false;
+            cmd_meta_pressed := false; // Cmd on macOS, Meta on Linux
         }
-        
         packed: u32 = 0;
     }
-    
-    type : Event_Type = Event_Type.UNINITIALIZED;
+
+    type: Event_Type = Event_Type.UNINITIALIZED;
 
     // If keyboard event:
-    key_pressed : u32 = 0;  // If not pressed, it's a key release.
-    key_code : Key_Code = Key_Code.UNKNOWN;
+    key_pressed: u32;  // If not pressed, it's a key release.
+    key_code: Key_Code = Key_Code.UNKNOWN;
 
-    using modifier_flags: Modifier_Flags;
+    using modifier_flags: Modifier_Flags; // Only set for Event_Type.KEYBOARD.
 
-    utf32 : u32 = 0;  // If TEXT_INPUT.
+    utf32: u32;  // If TEXT_INPUT.
     repeat := false;  // If KEYBOARD event.
-    
+    text_input_count: u16; // If KEYBOARD event that also generated TEXT_INPUT events, this will tell you how many TEXT_INPUT events after this KEYBOARD event were generated.
+
     typical_wheel_delta: s32;  // Used only for mouse events.
     wheel_delta: s32;          // Used only for mouse events.
 
-    files: [] string;  // Used only for drag and drop events. Heap-allocated, lives until events are reset for the next frame.
+    files: [] string;  // Used only for drag and drop events. Both the array and its contents are heap-allocated, lives until events are reset for the next frame.
 }
 
 // Per-frame mouse deltas:
@@ -210,14 +216,14 @@ get_window_resizes :: () -> [] Window_Resize_Record {
     // The return value here will stick around in memory until the next call
     // to get_window_resizes (from any thread. Actually this whole module does
     // not deal with threading, so don't do that!)
-    
+
     if resizes_to_free  array_reset(*resizes_to_free);
-    
+
     if !pending_resizes return .[];
 
     array_copy(*resizes_to_free, pending_resizes);
     this_allocation_is_not_a_leak(resizes_to_free.data);
-    
+
     pending_resizes.count = 0;
     return resizes_to_free;
 }
@@ -235,8 +241,15 @@ get_window_moves :: () -> [] Window_Move_Record {
 
 input_per_frame_event_and_flag_update :: () {
     // Called once per frame, probably.
+
+    for events_this_frame {
+        for file: it.files {
+            free(file);
+        }
+        array_free(it.files);
+    }
     array_reset(*events_this_frame);
-    
+
     mask     := ~Key_Current_State.START;
     end_mask := ~(Key_Current_State.END | .DOWN | .START);
     // @Speed: Could just keep a list of who is not currently set.

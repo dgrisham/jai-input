@@ -8,6 +8,8 @@ set_custom_cursor_handling :: (is_custom: bool) {
 
 get_key_code :: (key: KeySym) -> Key_Code {
     using Key_Code;
+    // Modified get_key_code() by Vladislav Morozov,
+    // subject to CC0 1.0 Universal.
 
     if key == 32
         return SPACEBAR;
@@ -57,51 +59,97 @@ get_key_code :: (key: KeySym) -> Key_Code {
         return ENTER;
     if (key == XK_Control_L) || (key == XK_Control_R) || (key == XK_Caps_Lock) // @dgrisham: manually remap caps lock
         return CTRL;
-    if key == XK_BackSpace
-        return BACKSPACE;
-    if key == XK_Delete
-        return DELETE;
-    if key == XK_Tab
-        return TAB;
-    if key == XK_F1
-        return F1;
-    if key == XK_F2
-        return F2;
-    if key == XK_F3
-        return F3;
-    if key == XK_F4
-        return F4;
-    if key == XK_F5
-        return F5;
-    if key == XK_F6
-        return F6;
-    if key == XK_F7
-        return F7;
-    if key == XK_F8
-        return F8;
-    if key == XK_F9
-        return F9;
-    if key == XK_F10
-        return F10;
-    if key == XK_F11
-        return F11;
-    if key == XK_F12
-        return F12;
-    if key == XK_F13
-        return F13;
-    if key == XK_F14
-        return F14;
-    if key == XK_F15
-        return F15;
-    if key == XK_F16
-        return F16;
+    // if key == XK_BackSpace
+    //     return BACKSPACE;
+    // if key == XK_Delete
+    //     return DELETE;
+    // if key == XK_Tab
+    //     return TAB;
+    // if key == XK_F1
+    //     return F1;
+    // if key == XK_F2
+    //     return F2;
+    // if key == XK_F3
+    //     return F3;
+    // if key == XK_F4
+    //     return F4;
+    // if key == XK_F5
+    //     return F5;
+    // if key == XK_F6
+    //     return F6;
+    // if key == XK_F7
+    //     return F7;
+    // if key == XK_F8
+    //     return F8;
+    // if key == XK_F9
+    //     return F9;
+    // if key == XK_F10
+    //     return F10;
+    // if key == XK_F11
+    //     return F11;
+    // if key == XK_F12
+    //     return F12;
+    // if key == XK_F13
+    //     return F13;
+    // if key == XK_F14
+    //     return F14;
+    // if key == XK_F15
+    //     return F15;
+    // if key == XK_F16
+    //     return F16;
 
-    key = key & 0xFF;
-    if (key >= #char "a") && (key <= #char "z") return cast(Key_Code) (key - 0x20);
+//     key = key & 0xFF;
+//     if (key >= #char "a") && (key <= #char "z") return cast(Key_Code) (key - 0x20);
 
-    return UNKNOWN;
+//     return UNKNOWN;
+// }
+
+     if key == XK_Pause
+         return PAUSE;
+     if key == XK_Scroll_Lock
+         return SCROLL_LOCK;
+
+
+     if (key == XK_Alt_L) || (key == XK_Alt_R)
+     || (key == 0xfe03) // AltGr #on_my_machine @Cleanup
+         return ALT;
+     if (key == XK_Control_L) || (key == XK_Control_R)
+         return CTRL;
+     if (key == XK_Shift_L) || (key == XK_Shift_R)
+         return SHIFT;
+     if (key == XK_Meta_L) || (key == XK_Meta_R)
+     || (key == XK_Super_L) || (key == XK_Super_R)
+     || (key == XK_Hyper_L) || (key == XK_Hyper_R)
+         return META;
+
+
+     if key >= XK_F1 && key <= XK_F24
+         return (cast(Key_Code) (key - XK_F1))+F1;
+
+
+     if key == 0xff61 // XK_Print_Screen @Cleanup add to modules/X11/module.jai
+         return PRINT_SCREEN;
+
+
+     if key == 0xff67 // XK_Menu @Cleanup add to modules/X11/module.jai
+         return UNKNOWN;
+
+     key = key & 0xFF; // @Cleanup Why is this here? (It mapped Menu to "G". What else?)
+
+     gen_ascii_LUT :: () -> [0xFF] Key_Code {
+         lut : [0xFF] Key_Code; // Filled with UNKNOWN (=0)
+         for (#char "a")..(#char "z") lut[it] = cast(Key_Code) (it - 0x20);
+         for (#char "0")..(#char "9") lut[it] = cast(Key_Code) it;
+         for cast([]u8)"`;'\\[]-=.,/+ \n" lut[it] = cast(Key_Code) it;
+         //print("\n\n%\n\n", FormatArray.{value=cast([]u32)lut,stop_printing_after_this_many_elements=-1}); @Cleanup do this once it's fixed
+         //assert(false, "Copypaste the LUT into this file and comment out this #run");
+         return lut;
+     }
+
+     LUT : [0xFF] Key_Code : #run gen_ascii_LUT();
+
+     return LUT[key];
 }
-
 
 #scope_file
 
@@ -269,14 +317,14 @@ get_selection :: (display: *Display, from: Window, prop: Atom, insert: Window) -
     XDeleteProperty(display, insert, prop);
 
     /* @Cleanup: Get rid of fd_set stuff.
-    time_start := get_time();
+    time_start := seconds_since_init();
     while true {
         r: fd_set;
         xe: XEvent;
         if XCheckMaskEvent(display, PropertyChangeMask, *xe) {
             if xe.type == PropertyNotify && xe.xproperty.state == PropertyNewValue {
                 // time between arrivals of data
-                time_start = get_time();
+                time_start = seconds_since_init();
                 if paste_property(display, from, insert, prop, True)  break;
             }
         } else {
@@ -286,7 +334,7 @@ get_selection :: (display: *Display, from: Window, prop: Atom, insert: Window) -
 
             if FD_ISSET(ConnectionNumber(display), *r)  continue;
         }
-        end := get_time();
+        end := seconds_since_init();
 
         // no data for five seconds, so quit
         if end - start > 5000000  return false;
@@ -454,25 +502,31 @@ maybe_handle_xdnd_drop_events :: (display: *Display, xevent: *XEvent, drop_info:
     if drop_info.data.count > 0 {
         files: [..] string;
 
-        p := "";
+        p: string = ---;
         p.data = drop_info.data.data;
         p.count = drop_info.data.count;
         while true {
-            i := find_index_from_left(p, "\r\n");
-            if i == -1  break;
+            uri_length := find_index_from_left(p, "\r\n");
+            if uri_length == -1  break;
 
-            file_name := "";
+            // X gives URI like "file://[host]/path/to/file" instead of just path
+            URI_PREFIX :: "file://";
+            assert(begins_with(p, URI_PREFIX));
+            // let's ignore this "file://" prefix
+            file_name := slice(p, URI_PREFIX.count, uri_length - URI_PREFIX.count);
+            assert(file_name.count > 0);
+
+            advance(*p, uri_length + 2);
+
+            if (file_name[0] != #char "/") {
+                // URI seems to start with a hostname.
+                log_error("Drag & drop for file URIs with hostnames is not yet supported. Ignoring \"%\".", slice(p, 0, uri_length));
+                continue;
+            }
+
             // Heap allocated like on Windows.
-            file_name_bytes := cast(*u8) alloc(i, __temporary_allocator);
-            memcpy(file_name_bytes, p.data, i);
-            p.data = p.data + i + 2;
-            p.count = p.count - i - 2;
-
-            file_name.data = file_name_bytes;
-            file_name.count = i;
-            array_add(*files, file_name);
+            array_add(*files, copy_string(file_name));
         }
-
 
         event: Event;
         event.type = .DRAG_AND_DROP_FILES;
@@ -494,7 +548,7 @@ update_x11_window_events :: () {
 
     display := x_global_display;
     XLockDisplay(display);
-    
+
     while XPending(display) {
         xev: XEvent;
         XNextEvent(display, *xev);
@@ -539,7 +593,7 @@ update_x11_window_events :: () {
             event.shift_pressed = cast(bool) shift;
 
             input_button_states[event.key_code] = (Key_Current_State.START | Key_Current_State.DOWN);
-            
+
             array_add(*events_this_frame, event);
 
             keysym = XkbKeycodeToKeysym(display, xx xev.xkey.keycode, 0, shift);
@@ -561,8 +615,7 @@ update_x11_window_events :: () {
                     && nev.xkey.time == xev.xkey.time
                     && nev.xkey.keycode == xev.xkey.keycode {
 
-                    // this is a repeat so we pull it out of the queue and ignore the KeyRelease
-                    XNextEvent(display, *nev);
+                    // This is a repeat, so we ignore the KeyRelease.
                     continue;
                 }
             }
@@ -584,7 +637,7 @@ update_x11_window_events :: () {
             event.key_code = get_key_code(keysym);
 
             input_button_states[event.key_code] = Key_Current_State.END;
-            
+
             array_add(*events_this_frame, event);
         case ButtonPress;
             event: Event;
@@ -592,6 +645,20 @@ update_x11_window_events :: () {
 
             event.key_pressed = 1;
             button := xev.xbutton.button;
+
+            // 6/7 is horizontal/secondary wheel, don't handle it
+            if (button == 6) || (button == 7) continue;
+
+            // button 4/5 is mwheel up/down
+            if (button == 4) || (button == 5) {
+                event.type = .MOUSE_WHEEL;
+                event.typical_wheel_delta = WHEEL_DELTA;
+                event.wheel_delta = event.typical_wheel_delta * ifx button & 1 then cast(s32) - 1 else 1;
+                array_add(*events_this_frame, event);
+                mouse_delta_z += event.wheel_delta;
+                continue;
+            }
+            
             if button == Button1 {
                 event.key_code = MOUSE_BUTTON_LEFT;
             } else if button == Button2 {
@@ -610,6 +677,9 @@ update_x11_window_events :: () {
 
             event.key_pressed = 0;
             button := xev.xbutton.button;
+
+            if (button >= 4) && (button <= 7) continue;  // No action on button release of mouse wheels.
+            
             if button == Button1 {
                 event.key_code = MOUSE_BUTTON_LEFT;
             } else if button == Button2 {
@@ -705,6 +775,8 @@ update_x11_window_events :: () {
 }
 #scope_export
 
+WHEEL_DELTA :: 120;
+
 update_window_events :: () {
     update_x11_window_events();
 }
@@ -741,4 +813,4 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
-*/    
+*/
