@@ -646,8 +646,15 @@ update_x11_window_events :: () {
             event.key_pressed = 1;
             button := xev.xbutton.button;
 
-            // 6/7 is horizontal/secondary wheel, don't handle it
-            if (button == 6) || (button == 7) continue;
+            // @dgrisham added support for horizontal scrolling
+            if (button == 6) || (button == 7) {
+                event.type = .MOUSE_WHEEL;
+                event.typical_wheel_delta = WHEEL_DELTA;
+                event.horizontal_wheel_delta = event.typical_wheel_delta * ifx button & 1 then cast(s32) - 1 else 1;
+                array_add(*events_this_frame, event);
+                mouse_delta_x += event.wheel_delta;
+                continue;
+            }
 
             // button 4/5 is mwheel up/down
             if (button == 4) || (button == 5) {
