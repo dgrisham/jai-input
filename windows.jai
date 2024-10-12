@@ -272,6 +272,17 @@ MyWindowProc :: (hwnd: HWND, message: u32,
             last_mouse_event_x = x;
             last_mouse_event_y = y;
 */
+
+          // @dgrisham added support for horizontal scrolling (UNTESTED!)
+          case WM_MOUSEHWHEEL;
+            event: Event;
+            event.type = .MOUSE_WHEEL;
+            event.typical_wheel_delta = WHEEL_DELTA;
+            event.horizontal_wheel_delta = xx cast,trunc(s16)(wParam >> 16);
+            array_add(*events_this_frame, event);
+
+            mouse_delta_x += event.wheel_delta;
+
           case WM_MOUSEWHEEL;
             event: Event;
             event.type = .MOUSE_WHEEL;
