@@ -59,8 +59,8 @@ get_key_code :: (key: KeySym) -> Key_Code {
         return ENTER;
     if (key == XK_Control_L) || (key == XK_Control_R) || (key == XK_Caps_Lock) // @dgrisham: manually remap caps lock
         return CTRL;
-    // if key == XK_BackSpace
-    //     return BACKSPACE;
+    if key == XK_BackSpace
+        return BACKSPACE;
     // if key == XK_Delete
     //     return DELETE;
     // if key == XK_Tab
