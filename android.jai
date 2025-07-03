@@ -1,3 +1,16 @@
+Android_Pointer_Info :: struct {
+    state: Key_Current_State;
+    window_position_x: float;
+    window_position_y: float;
+}
+
+android_generate_mouse_clicks_for_touch_events := true;
+
+// There is no limit in Android api, it seems to be down to the device. I think my phone is limited to 10.
+// Almost no reason to even allow more than 2 for this, but there you go!
+android_pointers : [10] Android_Pointer_Info;
+android_num_pointers := 0;
+
 update_window_events :: () {
     if !initted {
         defer initted = true;
@@ -43,62 +56,6 @@ android_process_events :: () {
 
 set_custom_cursor_handling :: (is_custom: bool) {}
 
-// I did some pointer stuff in onscreen_controls.jai for invaders. Probably gonna just put that in here
-// at some point. Not sure atm how to do it usefully. For now this module just handles one finger that
-// emulates being a mouse.
-// - Charles
-
-handle_input_event :: (event: *AInputEvent) -> bool {
-    Window_Creation :: #import "Window_Creation"; // @Hack
-
-    if AInputEvent_getType(event) == .MOTION {
-        action := cast(AMOTION_EVENT_ACTION) AMotionEvent_getAction(event);
-        android_num_pointers = xx AMotionEvent_getPointerCount(event); // @Tmp
-
-        window_height := ANativeWindow_getHeight(context.android_app.window);
-
-        new_x := AMotionEvent_getX(event, 0);
-        new_y := window_height - AMotionEvent_getY(event, 0);
-        Window_Creation.touch_x = xx new_x;
-        Window_Creation.touch_y = xx new_y;
-
-        // If less than zero we weren't touching last frame => delta is zero.
-        if last_touch_x >= 0 {
-            mouse_delta_x = xx (new_x - last_touch_x);
-            mouse_delta_y = xx (new_y - last_touch_y);
-        }
-
-        last_touch_x = new_x;
-        last_touch_y = new_y;
-
-        if action == {
-            case .DOWN;
-                event: Event;
-                event.type = .KEYBOARD;
-                event.key_pressed = 1;
-                event.key_code = .MOUSE_BUTTON_LEFT;
-                array_add(*events_this_frame, event);
-
-                input_button_states[Key_Code.MOUSE_BUTTON_LEFT] = (Key_Current_State.DOWN | .START);
-
-            case .UP;
-                event: Event;
-                event.type = .KEYBOARD;
-                event.key_pressed = 0;
-                event.key_code = .MOUSE_BUTTON_LEFT;
-                array_add(*events_this_frame, event);
-
-                input_button_states[Key_Code.MOUSE_BUTTON_LEFT] = .END;
-
-                last_touch_x, last_touch_y = -1.;
-        }
-
-        return true;
-    }
-
-    return false;
-}
-
 //
 // @Incomplete :AndroidLifeCycle
 //
@@ -106,7 +63,7 @@ handle_input_event :: (event: *AInputEvent) -> bool {
 // focus you are required to create/destroy it's egl context, see example at https://github.com/android/ndk-samples/blob/master/native-activity/app/src/main/cpp/main.cpp
 //
 // It is unclear how much should be handled in this module vs leaving it up to the user's app.
-handle_command :: (app: *Native_App.Android_App, cmd: s32) {
+android_handle_command :: (app: *Native_App.Android_App, cmd: s32) {
     command := cast(Native_App.APP_CMD) cmd;
     log("Command received: %", command);
 
@@ -147,8 +104,121 @@ handle_command :: (app: *Native_App.Android_App, cmd: s32) {
     }
 }
 
-android_in_focus: bool;
+android_handle_input_event :: (event: *AInputEvent) -> handled: bool {
+    handled := false;
 
+    if AInputEvent_getType(event) == .MOTION {
+        action_and_pointer_index := cast(AMOTION_EVENT_ACTION) AMotionEvent_getAction(event);
+        action        := action_and_pointer_index & AMOTION_EVENT_ACTION.MASK;
+        pointer_index := cast(u64) (action_and_pointer_index) >> AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT;
+        pointer_id    := AMotionEvent_getPointerId(event, pointer_index);
+        num_pointers  := AMotionEvent_getPointerCount(event);
+
+        primary_x := AMotionEvent_getX(event, pointer_index);
+        primary_y := AMotionEvent_getY(event, pointer_index);
+
+        window_height := ANativeWindow_getHeight(context.android_app.window);
+        mouse_event_y := window_height - AMotionEvent_getY(event, 0);
+
+        do_mouse := android_generate_mouse_clicks_for_touch_events;
+        if do_mouse {
+            // If less than zero we weren't touching last frame => delta is zero.
+            // Negating y because right now mouse coordinates are right-handed,
+            // though I thought we let people adjust that now?
+            if last_touch_x >= 0 {
+                mouse_delta_x = xx  (primary_x - last_touch_x);
+                mouse_delta_y = xx -(primary_y - last_touch_y);
+            }
+        }
+        
+        last_touch_x = primary_x;
+        last_touch_y = primary_y;
+
+        // The first touch is a down/up. Subsequent touches (while still holding first) will be pointer_up/down
+        if action == {
+          case .DOWN; #through;
+          case .POINTER_DOWN;
+            // log_error("Touched by id % at (%, %)", pointer_id, primary_x, primary_y);
+            android_pointers[pointer_id].state = .DOWN | .START;
+            android_pointers[pointer_id].window_position_x = primary_x;
+            android_pointers[pointer_id].window_position_y = primary_y;
+
+            handled = true;
+
+            if do_mouse {
+                e := array_add(*events_this_frame);
+                e.type = .KEYBOARD;
+                e.key_pressed = 1;
+                e.key_code = .MOUSE_BUTTON_LEFT;
+
+                input_button_states[Key_Code.MOUSE_BUTTON_LEFT] = .DOWN | .START;
+            }
+
+            e := array_add(*events_this_frame);
+            e.type        = .TOUCH;
+            e.touch_type  = .PRESSED;
+            e.touch_index = pointer_id;
+
+            input_button_states[Key_Code.TOUCH] = .DOWN | .START;
+            
+
+          case .UP; #through;
+          case .POINTER_UP;
+            // log_error("Released by id % at (%, %)", pointer_id, primary_x, primary_y);
+            android_pointers[pointer_id].state = .END;
+            handled = true;
+
+            if do_mouse {
+                e := array_add(*events_this_frame);
+                e.type = .KEYBOARD;
+                e.key_pressed = 0;
+                e.key_code = .MOUSE_BUTTON_LEFT;
+
+                input_button_states[Key_Code.MOUSE_BUTTON_LEFT] = .END;
+
+                last_touch_x, last_touch_y = -1.0;
+            }
+            
+            e := array_add(*events_this_frame);
+            e.type        = .TOUCH;
+            e.touch_type  = .RELEASED;
+            e.touch_index = pointer_id;
+            
+            input_button_states[Key_Code.TOUCH] = .END;
+            
+          case .MOVE;
+            // Move gives us the position of every touching pointer so we have to loop and look at them.
+            for 0..num_pointers-1 {
+                pointer_id = AMotionEvent_getPointerId(event, it);
+
+                pointer := *android_pointers[pointer_id];
+                assert((pointer.state & .DOWN) != 0, "Pointer with id % is received a move event in an unexpected state - %", pointer_id, pointer.state);
+
+                // Android also gives you a history of positions inbetween motion events if you want, I am
+                // just using current position.
+                // history_size := AMotionEvent_getHistorySize(event);
+
+                pointer.window_position_x = AMotionEvent_getX(event, it);
+                pointer.window_position_y = AMotionEvent_getY(event, it);
+            }
+            
+            handled = true;
+
+            e := array_add(*events_this_frame);
+            e.type        = .TOUCH;
+            e.touch_type  = .MOVED;
+            e.touch_index = pointer_id;
+
+          case;
+            log("Unhandled motion event of type %", action, flags = .WARNING);
+        }
+    }
+
+    return handled;
+}
+
+android_in_focus: bool;
+window_minimized :: false;
 
 #scope_file
 
@@ -180,9 +250,8 @@ initted := false;
 #import "Android";
 Native_App :: #import "Android/Native_App";
 
-last_touch_x, last_touch_y := -1.;
+last_touch_x, last_touch_y := -1.0;
 
 // @Tmp allows skel anim to do different things for 2 finger touch. Will probably want something more general for
 // touch input.
 #scope_export
-android_num_pointers := 0;

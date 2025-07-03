@@ -25,6 +25,7 @@ Event_Type :: enum u32 {  // If we set this to u8, our packing will stop matchin
     MOUSE_WHEEL :: 4;
     QUIT        :: 5;
     DRAG_AND_DROP_FILES :: 6;
+    TOUCH       :: 7;
 }
 
 Key_Current_State :: enum_flags u32 {
@@ -139,6 +140,8 @@ Key_Code :: enum u32 {
     GAMEPAD_3_BEGIN;
     GAMEPAD_3_END :: GAMEPAD_3_BEGIN + xx GAMEPAD_BUTTON_COUNT;
 
+    TOUCH;
+    
     // WARNING!
     //
     // We make an array whose size is controlled
@@ -167,6 +170,7 @@ Event :: struct {
             alt_pressed      := false;
             cmd_meta_pressed := false; // Cmd on macOS, Meta on Linux
         }
+
         packed: u32 = 0;
     }
 
@@ -174,7 +178,7 @@ Event :: struct {
 
     // If keyboard event:
     key_pressed: u32;  // If not pressed, it's a key release.
-    key_code: Key_Code = Key_Code.UNKNOWN;
+    key_code := Key_Code.UNKNOWN;
 
     using modifier_flags: Modifier_Flags; // Only set for Event_Type.KEYBOARD.
 
@@ -182,11 +186,20 @@ Event :: struct {
     repeat := false;  // If KEYBOARD event.
     text_input_count: u16; // If KEYBOARD event that also generated TEXT_INPUT events, this will tell you how many TEXT_INPUT events after this KEYBOARD event were generated.
 
-    typical_wheel_delta: s32;  // Used only for mouse events.
-    wheel_delta: s32;          // Used only for mouse events.
-    horizontal_wheel_delta: s32; // Used only for mouse events. @dgrisham added for horizontal scroll support
+    typical_wheel_delta: s32;    // Used only for mouse events.
+    wheel_delta: s32;            // Used only for mouse events.
+    horizontal_wheel_delta: s32; // @dgrisham added for horizontal scroll support
 
-    files: [] string;  // Used only for drag and drop events. Both the array and its contents are heap-allocated, lives until events are reset for the next frame.
+    files: [..] string;  // Used only for drag and drop events. Both the array and its contents are heap-allocated, lives until events are reset for the next frame.
+
+
+    touch_type: enum u8 { // Used only for touch events.
+        MOVED    :: 0;
+        PRESSED  :: 1;
+        RELEASED :: 2;
+    }
+    
+    touch_index:   s32;  // Used only for touch events. Index of which touch this is.
 }
 
 // Per-frame mouse deltas:
@@ -195,6 +208,7 @@ mouse_delta_y: int;
 mouse_delta_z: int;
 
 events_this_frame:   [..] Event;
+
 input_button_states: [NUM_BUTTON_STATES] Key_Current_State;
 
 input_application_has_focus := false;
@@ -244,21 +258,25 @@ input_per_frame_event_and_flag_update :: () {
     // Called once per frame, probably.
 
     for events_this_frame {
+        allocator := it.files.allocator;  // Same allocator for filenames and the array itself.
+        
         for file: it.files {
-            free(file);
+            free(file,, allocator);
         }
-        array_free(it.files);
+        
+        array_free(it.files,, allocator);
     }
+    
     array_reset(*events_this_frame);
 
     mask     := ~Key_Current_State.START;
     end_mask := ~(Key_Current_State.END | .DOWN | .START);
     // @Speed: Could just keep a list of who is not currently set.
     for * input_button_states {
-        if (<<it & .END) {
-            <<it &= end_mask;
+        if it.* & .END {
+            it.* &= end_mask;
         } else {
-            <<it &= mask;
+            it.* &= mask;
         }
     }
 

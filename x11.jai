@@ -7,12 +7,23 @@ set_custom_cursor_handling :: (is_custom: bool) {
 }
 
 get_key_code :: (key: KeySym) -> Key_Code {
-    using Key_Code;
     // Modified get_key_code() by Vladislav Morozov,
     // subject to CC0 1.0 Universal.
 
-    if key == 32
-        return SPACEBAR;
+    using Key_Code;
+    // non-ascii ordered as in ./module.jai/Key_Code
+    if key == XK_BackSpace
+        return BACKSPACE;
+    if key == XK_Tab || key == XK_KP_Tab || key == XK_ISO_Left_Tab
+        return TAB;
+    if key == XK_Return
+        return ENTER;
+    if key == XK_Escape
+        return ESCAPE;
+
+    if key == 32 || key == XK_KP_Space return SPACEBAR;
+
+    // @dgrisham This block is what I've manually added as of jai 0.2.014
     if key == 44
         return LEFT_ANGLE_BRACKET;
     if key == 45
@@ -43,112 +54,72 @@ get_key_code :: (key: KeySym) -> Key_Code {
         return NUMBER_9;
     if key == 61
         return EQUALS_SIGN;
-    if key == XK_Left
-        return ARROW_LEFT;
-    if key == XK_Right
-        return ARROW_RIGHT;
-    if key == XK_Up
+    if (key == XK_Control_L) || (key == XK_Control_R) || (key == XK_Caps_Lock) // manually remapping caps lock to ctrl
+        return CTRL;
+    /////////////////////////////////////////////////////////////////////
+
+    if key == XK_Delete || key == XK_KP_Delete
+        return DELETE;
+
+
+    if key == XK_Up || key == XK_KP_Up
         return ARROW_UP;
-    if key == XK_Down
+    if key == XK_Down || key == XK_KP_Down
         return ARROW_DOWN;
+    if key == XK_Left || key == XK_KP_Left
+        return ARROW_LEFT;
+    if key == XK_Right || key == XK_KP_Right
+        return ARROW_RIGHT;
+
+
+    if key == XK_Page_Up || key == XK_KP_Page_Up
+        return PAGE_UP;
+    if key == XK_Page_Down || key == XK_KP_Page_Down
+        return PAGE_DOWN;
+
+
+    if key == XK_Home || key == XK_KP_Home
+        return HOME;
+    if key == XK_End || key == XK_KP_End
+        return END;
+
+    if key == XK_Insert || key == XK_KP_Insert
+        return INSERT;
+
+    if key == XK_Pause
+        return PAUSE;
+    if key == XK_Scroll_Lock
+        return SCROLL_LOCK;
+
+    if (key == XK_Alt_L) || (key == XK_Alt_R) || (key == XK_ISO_Level3_Shift) 
+        return ALT;
+    
+    if (key == XK_Control_L) || (key == XK_Control_R)
+        return CTRL;
     if (key == XK_Shift_L) || (key == XK_Shift_R)
         return SHIFT;
-    if key == XK_Escape
-        return ESCAPE;
-    if key == XK_Return
-        return ENTER;
-    if (key == XK_Control_L) || (key == XK_Control_R) || (key == XK_Caps_Lock) // @dgrisham: manually remap caps lock
-        return CTRL;
-    if key == XK_BackSpace
-        return BACKSPACE;
-    // if key == XK_Delete
-    //     return DELETE;
-    // if key == XK_Tab
-    //     return TAB;
-    // if key == XK_F1
-    //     return F1;
-    // if key == XK_F2
-    //     return F2;
-    // if key == XK_F3
-    //     return F3;
-    // if key == XK_F4
-    //     return F4;
-    // if key == XK_F5
-    //     return F5;
-    // if key == XK_F6
-    //     return F6;
-    // if key == XK_F7
-    //     return F7;
-    // if key == XK_F8
-    //     return F8;
-    // if key == XK_F9
-    //     return F9;
-    // if key == XK_F10
-    //     return F10;
-    // if key == XK_F11
-    //     return F11;
-    // if key == XK_F12
-    //     return F12;
-    // if key == XK_F13
-    //     return F13;
-    // if key == XK_F14
-    //     return F14;
-    // if key == XK_F15
-    //     return F15;
-    // if key == XK_F16
-    //     return F16;
-
-//     key = key & 0xFF;
-//     if (key >= #char "a") && (key <= #char "z") return cast(Key_Code) (key - 0x20);
-
-//     return UNKNOWN;
-// }
-
-     if key == XK_Pause
-         return PAUSE;
-     if key == XK_Scroll_Lock
-         return SCROLL_LOCK;
+    if     (key == XK_Meta_L)  || (key == XK_Meta_R)
+        || (key == XK_Super_L) || (key == XK_Super_R)
+        || (key == XK_Hyper_L) || (key == XK_Hyper_R)
+        return META;
 
 
-     if (key == XK_Alt_L) || (key == XK_Alt_R)
-     || (key == 0xfe03) // AltGr #on_my_machine @Cleanup
-         return ALT;
-     if (key == XK_Control_L) || (key == XK_Control_R)
-         return CTRL;
-     if (key == XK_Shift_L) || (key == XK_Shift_R)
-         return SHIFT;
-     if (key == XK_Meta_L) || (key == XK_Meta_R)
-     || (key == XK_Super_L) || (key == XK_Super_R)
-     || (key == XK_Hyper_L) || (key == XK_Hyper_R)
-         return META;
+    if key >= XK_F1 && key <= XK_F24
+        return (cast(Key_Code) (key - XK_F1))+F1;
 
 
-     if key >= XK_F1 && key <= XK_F24
-         return (cast(Key_Code) (key - XK_F1))+F1;
+    if key == XK_Print
+        return PRINT_SCREEN;
 
 
-     if key == 0xff61 // XK_Print_Screen @Cleanup add to modules/X11/module.jai
-         return PRINT_SCREEN;
+    if key == XK_Menu
+        return UNKNOWN;
 
+    key = key & 0xFF; // @Cleanup Why is this here? (It mapped Menu to "G". What else?)
+    if (key >= #char "a") && (key <= #char "z") return cast(Key_Code) (key - 0x20);
+    if key > 32 && key < 127 return cast(Key_Code) key;
 
-     if key == 0xff67 // XK_Menu @Cleanup add to modules/X11/module.jai
-         return UNKNOWN;
-
-     key = key & 0xFF; // @Cleanup Why is this here? (It mapped Menu to "G". What else?)
-
-     gen_ascii_LUT :: () -> [0xFF] Key_Code {
-         lut : [0xFF] Key_Code; // Filled with UNKNOWN (=0)
-         for (#char "a")..(#char "z") lut[it] = cast(Key_Code) (it - 0x20);
-         for (#char "0")..(#char "9") lut[it] = cast(Key_Code) it;
-         for cast([]u8)"`;'\\[]-=.,/+ \n" lut[it] = cast(Key_Code) it;
-         //print("\n\n%\n\n", FormatArray.{value=cast([]u32)lut,stop_printing_after_this_many_elements=-1}); @Cleanup do this once it's fixed
-         //assert(false, "Copypaste the LUT into this file and comment out this #run");
-         return lut;
-     }
-
-     LUT : [0xFF] Key_Code : #run gen_ascii_LUT();
-
-     return LUT[key];
+    return UNKNOWN;
 }
 
 #scope_file
@@ -202,16 +173,16 @@ apply_position :: (dnd: *Xdnd_Context, widget: Window, from: Window, action: Ato
 
     if !supported_action  return false;
 
-    <<want_position = true;
+    want_position.* = true;
     rectangle.x = 0;
     rectangle.y = 0;
     rectangle.width = 0;
     rectangle.height = 0;
 
-    drop_info.return_action = supported_action;
-    <<supported_action_return = supported_action;
+    drop_info.return_action   = supported_action;
+    supported_action_return.* = supported_action;
     drop_info.return_type = supported_type;
-    <<desired_type = supported_type;
+    desired_type.* = supported_type;
     drop_info.x = x;
     drop_info.y = y;
 
@@ -503,7 +474,7 @@ maybe_handle_xdnd_drop_events :: (display: *Display, xevent: *XEvent, drop_info:
         files: [..] string;
 
         p: string = ---;
-        p.data = drop_info.data.data;
+        p.data  = drop_info.data.data;
         p.count = drop_info.data.count;
         while true {
             uri_length := find_index_from_left(p, "\r\n");
@@ -549,17 +520,19 @@ update_x11_window_events :: () {
     display := x_global_display;
     XLockDisplay(display);
 
+    key_press_repeat := false;
     while XPending(display) {
         xev: XEvent;
         XNextEvent(display, *xev);
 
-        if xev.type == {
+        if XFilterEvent(*xev, None) continue;
 
+        if xev.type == {
           case ClientMessage;
             message_type := xev.xclient.message_type;
             if message_type == XdndEnter {
                 drop_handled := maybe_handle_xdnd_drop_events(display, *xev, *drop_info);
-		if drop_handled  continue;
+		        if drop_handled  continue;
             } else if message_type == x_global_wm_protocols {
                 message0 := cast(Atom) xev.xclient.data.l[0];
 
@@ -586,24 +559,58 @@ update_x11_window_events :: () {
             if xev.xkey.state & Mod1Mask
                 event.alt_pressed = true;
 
-            keysym := XkbKeycodeToKeysym(display, xx xev.xkey.keycode, 0, 0 /* English lowercase group*/);
-            event.type = .KEYBOARD;
-            event.key_pressed = 1;
-            event.key_code = get_key_code(keysym);
+            status: Status;
+            keysym: KeySym;
+            text: [16]u32;
+            lookup_count := XwcLookupString(x_global_input_context, *xev.xkey, xx text.data, xx text.count, *keysym, *status);
+
+            has_keysym := (status == XLookupKeySym || status == XLookupBoth);
+            has_text := (status == XLookupChars || status == XLookupBoth);
+
+            if has_keysym {
+                if xev.xkey.state & ShiftMask   event.shift_pressed = true;
+                if xev.xkey.state & ControlMask event.ctrl_pressed = true;
+                if xev.xkey.state & Mod1Mask    event.alt_pressed = true;
+                if xev.xkey.state & Mod4Mask    event.cmd_meta_pressed = true;
+
+                event.type = .KEYBOARD;
+                event.key_pressed = 1;
+                event.key_code = get_key_code(keysym);
+
+                for 0..lookup_count - 1 {
+                    utf32 := text[it];
+                    if utf32 >= 32 && utf32 != 127 event.text_input_count += 1;
+                }
+                
+                if event.key_code == {
+                    case .SHIFT; event.shift_pressed = true;
+                    case .CTRL;  event.ctrl_pressed = true;
+                    case .ALT;   event.alt_pressed = true;
+                    case .META;  event.cmd_meta_pressed = true;
+                }
+
+                event.repeat = key_press_repeat;
+                key_press_repeat = false;
+                
+                array_add(*events_this_frame, event);
+                input_button_states[event.key_code] = .START | .DOWN;
+            }
+
             event.shift_pressed = cast(bool) shift;
 
-            input_button_states[event.key_code] = (Key_Current_State.START | Key_Current_State.DOWN);
+            if has_text {
+                for 0..lookup_count - 1 {
+                    utf32 := text[it];
+                    if utf32 < 32 || utf32 == 127 continue;
 
-            array_add(*events_this_frame, event);
+                    char_event: Event;
+                    char_event.type = .TEXT_INPUT;
+                    char_event.key_pressed = 1;
+                    char_event.key_code = get_key_code(keysym);
+                    char_event.utf32 = utf32;
 
-            keysym = XkbKeycodeToKeysym(display, xx xev.xkey.keycode, 0, shift);
-            if (keysym < XK_BackSpace || keysym > XK_Hyper_R) && !event.ctrl_pressed {
-                //WM_CHAR equivalent
-                char_event: Event;
-                char_event.type = .TEXT_INPUT;
-                char_event.utf32 = xx keysym; // luckily most Xkb keys are directly mapped to Unicode characters @FixME which keys dont map to utf32 ??
-
-                array_add(*events_this_frame, char_event);
+                    array_add(*events_this_frame, char_event);
+                }
             }
         case KeyRelease;
             // For some odd reason X11 generates KeyRelease followed by a near identical KeyPress to simulate repeat events so we have to filter that out
@@ -615,7 +622,8 @@ update_x11_window_events :: () {
                     && nev.xkey.time == xev.xkey.time
                     && nev.xkey.keycode == xev.xkey.keycode {
 
-                    // This is a repeat, so we ignore the KeyRelease.
+                        // This is a repeat, so we ignore the KeyRelease and set the repeat flag.
+                    key_press_repeat = true;
                     continue;
                 }
             }
@@ -635,8 +643,8 @@ update_x11_window_events :: () {
             event.key_pressed = 0;
             event.shift_pressed = cast(bool) shift;
             event.key_code = get_key_code(keysym);
-
-            input_button_states[event.key_code] = Key_Current_State.END;
+            
+            input_button_states[event.key_code] = .END;
 
             array_add(*events_this_frame, event);
         case ButtonPress;
@@ -652,7 +660,7 @@ update_x11_window_events :: () {
                 event.typical_wheel_delta = WHEEL_DELTA;
                 event.horizontal_wheel_delta = event.typical_wheel_delta * ifx button & 1 then cast(s32) - 1 else 1;
                 array_add(*events_this_frame, event);
-                mouse_delta_x += event.wheel_delta;
+                mouse_delta_x += event.horizontal_wheel_delta;
                 continue;
             }
 
@@ -674,7 +682,7 @@ update_x11_window_events :: () {
                 event.key_code = MOUSE_BUTTON_RIGHT;
             }
 
-            input_button_states[event.key_code] = (Key_Current_State.START | Key_Current_State.DOWN);
+            input_button_states[event.key_code] = .START | .DOWN;
 
             array_add(*events_this_frame, event);
         case ButtonRelease;
@@ -695,7 +703,7 @@ update_x11_window_events :: () {
                 event.key_code = MOUSE_BUTTON_RIGHT;
             }
 
-            input_button_states[event.key_code] = Key_Current_State.END;
+            input_button_states[event.key_code] = .END;
 
             array_add(*events_this_frame, event);
         case SelectionRequest;
@@ -736,13 +744,13 @@ update_x11_window_events :: () {
                     #import "stb_image_write";
 
                     Data :: struct {
-                        _context: *Context;
+                        _context: *#Context;
                         data: [..] u8;
                     }
 
-                    write_func :: (_context: *void, _data: *void, size: s32) #c_call {
-                        data := cast(*Data) _context;
-                        push_context <<data._context {
+                    write_func :: (data_pointer: *void, _data: *void, size: s32) #c_call {
+                        data := cast(*Data) data_pointer;
+                        push_context data._context.* {
                             data8 := cast(*u8) _data;
                             for 0..size-1 {
                                 array_add(*data.data, data8[it]);
@@ -788,7 +796,7 @@ update_window_events :: () {
     update_x11_window_events();
 }
 
-// @Cutnpaste from Input/windows.jai
+// @Copypasta from Input/windows.jai
 add_resize_record :: (hwnd: Window, width: s32, height: s32) {
     record: *Window_Resize_Record;
     for * pending_resizes {

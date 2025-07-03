@@ -127,7 +127,7 @@ init_input_system :: () {
     using Key_Code;
 
     for * input_vk_translation_table {
-        <<it = UNKNOWN;
+        it.* = UNKNOWN;
     }
 
     input_vk_translation_table[OSX_VK_ESCAPE]        = ESCAPE;
@@ -429,7 +429,10 @@ update_cocoa_window_events :: () {
                     array_add(*events_this_frame, event);
                 }
 
-            case NSEventTypeMouseMoved;
+            case NSEventTypeMouseMoved;         #through;
+            case NSEventTypeLeftMouseDragged;   #through;
+            case NSEventTypeRightMouseDragged;  #through;
+            case NSEventTypeOtherMouseDragged;
                 mouse_delta_x += cast(int) NSEvent.deltaX(nsevent);
                 mouse_delta_y += cast(int) NSEvent.deltaY(nsevent);
 
@@ -455,6 +458,7 @@ update_cocoa_window_events :: () {
                 array_add(*events_this_frame, event);
 
                 mouse_delta_z += event.wheel_delta;
+                mouse_delta_x += event.horizontal_wheel_delta;
         }
     }
 
@@ -558,8 +562,7 @@ App_Delegate :: struct {
     #as using delegate: NSApplicationDelegate;
 
     applicationShouldTerminate :: (using self: *App_Delegate, _sel: Selector, sender: id) -> NSApplicationTerminateReply #c_call {
-        jai_context: Context;
-        push_context jai_context {
+        push_context {
             event: Event;
             event.type = .QUIT;
             array_add(*osx_externally_generated_events, event);
@@ -581,8 +584,7 @@ App_Delegate :: struct {
     } @selector(applicationDidBecomeActive:)
 
     applicationDidFinishLaunching :: (self: *App_Delegate, _sel: Selector, app: *NSApplication) #c_call {
-        ctx: Context;
-        push_context ctx {
+        push_context {
             NSApplication.setActivationPolicy(NSApp, NSApplicationActivationPolicyRegular);
             NSApplication.activateIgnoringOtherApps(NSApp, YES);
             NSApp.stop(NSApp, null);
@@ -594,8 +596,7 @@ Window_Delegate :: struct {
     using #as nsobject: NSObject;
 
     windowWillClose :: (using self: *Window_Delegate, _sel: Selector, notification: *NSNotification) #c_call {
-        jai_context: Context;
-        push_context jai_context {
+        push_context {
             // win := NSNotification.object(notification);
 
             event: Event;
@@ -616,7 +617,7 @@ Window_Delegate :: struct {
 
     /*
     windowWillResize :: (using self: *Window_Delegate, _sel: Selector, sender: *NSWindow, toSize: NSSize) -> NSSize #c_call {
-        push_context jai_context {
+        push_context {
             add_resize_record(sender, cast(s32) toSize.width, cast(s32) toSize.height);
             return toSize;
         }
@@ -624,8 +625,7 @@ Window_Delegate :: struct {
     */
 
     windowDidResize :: (using self: *Window_Delegate, _sel: Selector, notification: *NSNotification) #c_call {
-        jai_context: Context;
-        push_context jai_context {
+        push_context {
             my_window := cast(*NSWindow) notification.object(notification);
             view := NSWindow.contentView(my_window);
             frame := NSView.frame(view);
@@ -655,8 +655,7 @@ Window_Delegate :: struct {
     } @selector(prepareForDragOperation:)
 
     performDragOperation :: (using self: *Window_Delegate, _sel: Selector, sender: id /*id<NSDraggingInfo>*/) -> BOOL #c_call {
-        ctx: Context;
-        push_context ctx {
+        push_context {
             pasteboard := NSDraggingInfo.draggingPasteboard(sender);
             classes := NSArray(Class).arrayWithObject(class(NSURL));
             file_urls := NSPasteboard.readObjectsForClasses(pasteboard, classes, null, *NSURL);
@@ -672,7 +671,7 @@ Window_Delegate :: struct {
                 objc_file_path := NSURL.path(url);
                 file_path := to_string(objc_file_path);
                 if file_path {
-                    array_add(*files, copy_string(file_path));
+                    array_add(*files, copy_string(file_path,, files.allocator));
                 }
             }
 
